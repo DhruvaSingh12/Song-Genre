@@ -1,0 +1,7 @@
+/mel_arrays/
+/trimmed_wavs/
+/downloads/
+/mel_spectrograms/
+*.joblib
+*.pt
+*.pth
