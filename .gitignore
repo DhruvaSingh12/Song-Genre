@@ -1,7 +1,8 @@
 /mel_arrays/
 /trimmed_wavs/
-/downloads/
+/songs/
 /mel_spectrograms/
+/upload/
 *.joblib
 *.pt
 *.pth
