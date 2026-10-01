@@ -1,0 +1,391 @@
+================================================================================
+SONG GENRE CLASSIFICATION - COMPLETE FEATURE SPECIFICATION & DOCUMENTATION
+================================================================================
+
+PROJECT OVERVIEW:
+-----------------
+This repository contains a full end-to-end Music Genre Classification pipeline:
+1. Playlist & Song Acquisition: YouTube audio scraping via yt-dlp.
+2. Audio Preprocessing: 10-second segment clipping (10-200s duration, up to 10 
+   segments per track) at 22,050 Hz 16-bit mono WAV.
+3. Feature Engineering: Extraction of 31 handcrafted acoustic features 
+   (Time-domain, Statistical amplitude, Spectral, and Cepstral/MFCCs) saved to CSV.
+4. Spectrogram Engineering: Extraction of 128-band Log-Mel Spectrogram arrays 
+   saved as .npy matrices for Computer Vision architectures.
+5. Multi-Class Modeling:
+   - Tabular Models: Linear SVM, Random Forest, PyTorch Multi-Layer Perceptron (MLP), LightGBM.
+   - Deep CNN Models: MobileNetV2, EfficientNet-B0, ResNet-18 with SpecAugment & Fine-Tuning.
+   - Multi-Modal Ensemble: Soft-voting ensemble combining all 7 models + full-track segment aggregation.
+6. Target Classes (9 Genres): 
+   country, edm, hiphop, jazz, kpop, lofi, pop, r&b, rock.
+
+DATASET SPLIT & SPECIFICATIONS:
+-------------------------------
+- Sampling Rate (SR): 22,050 Hz (Mono)
+- FFT Window Length (N_FFT): 2,048 samples (~92.88 ms)
+- Hop Length (HOP_LENGTH): 512 samples (~23.22 ms)
+- Frequency Range: 0 Hz to 8,000 Hz
+- Total Dataset Instances: 16,261 audio segments
+- Split Strategy: Track-level Stratified Splitting (prevents segment data leakage)
+  * Train Set: 12,208 rows (75%)
+  * Validation Set: 2,442 rows (15%)
+  * Test Set: 1,610 rows (10%)
+- Feature Dimension: 31 numerical acoustic features
+- Metadata Columns: 2 ('Filename', 'Genre')
+- Total CSV Columns: 33
+
+
+================================================================================
+1. RAW FEATURE COLUMN LIST (FOR SCRIPTING / PARSING)
+================================================================================
+Zero_Crossing_Rate
+RMS_Energy
+Amplitude_Envelope_Mean
+Energy_Entropy
+Mean_Amplitude
+Variance_Amplitude
+Skewness_Amplitude
+Kurtosis_Amplitude
+Peak_to_Peak_Amplitude
+Spectral_Centroid
+Spectral_Bandwidth
+Spectral_Contrast
+Spectral_Rolloff
+Spectral_Flatness
+Spectral_Flux
+Spectral_Skewness
+Spectral_Kurtosis
+Spectral_Slope
+MFCC_1
+MFCC_2
+MFCC_3
+MFCC_4
+MFCC_5
+MFCC_6
+MFCC_7
+MFCC_8
+MFCC_9
+MFCC_10
+MFCC_11
+MFCC_12
+MFCC_13
+
+
+================================================================================
+2. ORDERED FEATURE INDEX & SUMMARY TABLE
+================================================================================
+Col | Feature Name             | Domain / Category   | Librosa / NumPy Source
+----+--------------------------+---------------------+-------------------------------------------------
+00  | Filename                 | Metadata / ID       | File basename string (e.g. country_100_seg1.wav)
+01  | Zero_Crossing_Rate       | Time-Domain         | librosa.feature.zero_crossing_rate
+02  | RMS_Energy               | Time-Domain         | librosa.feature.rms
+03  | Amplitude_Envelope_Mean  | Time-Domain         | Custom frame-max sliding window (1024 / 512)
+04  | Energy_Entropy           | Time-Domain         | Custom 10-slice short-term energy entropy
+05  | Mean_Amplitude           | Amplitude-Statistic | np.mean(y)
+06  | Variance_Amplitude       | Amplitude-Statistic | np.var(y)
+07  | Skewness_Amplitude       | Amplitude-Statistic | ((y - mean)^3).mean() / (std^3)
+08  | Kurtosis_Amplitude       | Amplitude-Statistic | ((y - mean)^4).mean() / (var^2)
+09  | Peak_to_Peak_Amplitude   | Amplitude-Statistic | np.ptp(y) (max - min)
+10  | Spectral_Centroid        | Spectral-Domain     | librosa.feature.spectral_centroid
+11  | Spectral_Bandwidth       | Spectral-Domain     | librosa.feature.spectral_bandwidth
+12  | Spectral_Contrast        | Spectral-Domain     | librosa.feature.spectral_contrast
+13  | Spectral_Rolloff         | Spectral-Domain     | librosa.feature.spectral_rolloff (roll_percent=0.85)
+14  | Spectral_Flatness        | Spectral-Domain     | librosa.feature.spectral_flatness
+15  | Spectral_Flux            | Spectral-Domain     | librosa.onset.onset_strength
+16  | Spectral_Skewness        | Spectral-Domain     | 3rd spectral moment from magnitude spectrum
+17  | Spectral_Kurtosis        | Spectral-Domain     | 4th spectral moment from magnitude spectrum
+18  | Spectral_Slope           | Spectral-Domain     | Linear regression slope of log-magnitude freqs
+19  | MFCC_1                   | Cepstral (MFCC)     | librosa.feature.mfcc[0] (Mean over frames)
+20  | MFCC_2                   | Cepstral (MFCC)     | librosa.feature.mfcc[1] (Mean over frames)
+21  | MFCC_3                   | Cepstral (MFCC)     | librosa.feature.mfcc[2] (Mean over frames)
+22  | MFCC_4                   | Cepstral (MFCC)     | librosa.feature.mfcc[3] (Mean over frames)
+23  | MFCC_5                   | Cepstral (MFCC)     | librosa.feature.mfcc[4] (Mean over frames)
+24  | MFCC_6                   | Cepstral (MFCC)     | librosa.feature.mfcc[5] (Mean over frames)
+25  | MFCC_7                   | Cepstral (MFCC)     | librosa.feature.mfcc[6] (Mean over frames)
+26  | MFCC_8                   | Cepstral (MFCC)     | librosa.feature.mfcc[7] (Mean over frames)
+27  | MFCC_9                   | Cepstral (MFCC)     | librosa.feature.mfcc[8] (Mean over frames)
+28  | MFCC_10                  | Cepstral (MFCC)     | librosa.feature.mfcc[9] (Mean over frames)
+29  | MFCC_11                  | Cepstral (MFCC)     | librosa.feature.mfcc[10] (Mean over frames)
+30  | MFCC_12                  | Cepstral (MFCC)     | librosa.feature.mfcc[11] (Mean over frames)
+31  | MFCC_13                  | Cepstral (MFCC)     | librosa.feature.mfcc[12] (Mean over frames)
+32  | Genre                    | Target Class        | Ground truth label (9 classes)
+
+
+================================================================================
+3. DETAILED ACOUSTIC FEATURE DESCRIPTIONS & FORMULAS
+================================================================================
+
+--------------------------------------------------------------------------------
+A. TIME-DOMAIN & AMPLITUDE STATISTICAL FEATURES (Features 1 - 9)
+--------------------------------------------------------------------------------
+
+1. Zero_Crossing_Rate (ZCR)
+   - Category: Time-Domain
+   - Computation: Mean value of librosa.feature.zero_crossing_rate across frames 
+     (frame_length=2048, hop_length=512).
+   - Description: Measures the rate at which the audio signal changes its sign 
+     from positive to negative or vice versa. High ZCR typically correlates with 
+     noisy, percussive, unvoiced sound components (e.g., hi-hats, distorted guitars 
+     in rock/metal), whereas low ZCR indicates tonal and harmonic instruments 
+     (e.g., acoustic bass, piano in jazz/lo-fi).
+
+2. RMS_Energy (Root Mean Square Energy)
+   - Category: Time-Domain
+   - Computation: Mean value of librosa.feature.rms across frames 
+     (frame_length=2048, hop_length=512).
+   - Description: Represents the effective energy and perceived loudness of the 
+     audio waveform over time. Differentiates heavily compressed, high-energy 
+     genres (EDM, Pop, Rock) from acoustic or soft dynamics (Lo-Fi, Jazz, Country).
+
+3. Amplitude_Envelope_Mean
+   - Category: Time-Domain
+   - Computation: Mean of maximum absolute amplitudes over non-overlapping/sliding 
+     windows of length 1,024 samples with hop length 512.
+   - Description: Captures the average amplitude peak across the 10-second segment, 
+     reflecting transient dynamics, compression levels, and peak punchiness.
+
+4. Energy_Entropy
+   - Category: Time-Domain
+   - Computation: Short-term energy entropy computed across 10 equal sub-slices of 
+     the 10-second segment:
+       probs = energies / sum(energies)
+       Entropy = -sum(probs * log2(probs + 1e-12))
+   - Description: Quantifies abrupt changes and transitions in audio energy over 
+     time. A uniform energy distribution produces high entropy (steady EDM beats 
+     or wall-of-sound rock), while sparse or intermittent musical phrases yield 
+     lower entropy.
+
+5. Mean_Amplitude
+   - Category: Amplitude-Statistic
+   - Computation: np.mean(y) of raw audio samples.
+   - Description: Represents the DC offset and central tendency of the raw signal. 
+     Ideally near zero in properly mastered recordings; subtle variations capture 
+     asymmetric waveforms or mastering artifacts.
+
+6. Variance_Amplitude
+   - Category: Amplitude-Statistic
+   - Computation: np.var(y) of raw audio samples.
+   - Description: Measures the statistical spread of the sample amplitudes around 
+     the mean. A higher variance corresponds to larger instantaneous volume 
+     deviations and high signal power.
+
+7. Skewness_Amplitude
+   - Category: Amplitude-Statistic
+   - Computation: Third standardized moment: ((y - mean)^3).mean() / (std^3).
+   - Description: Measures the asymmetry of the amplitude distribution. Skewness 
+     differs between symmetrical sinusoids and asymmetric transient audio pulses 
+     (such as sharp synth plucks or brass onsets).
+
+8. Kurtosis_Amplitude
+   - Category: Amplitude-Statistic
+   - Computation: Fourth standardized moment: ((y - mean)^4).mean() / (var^2).
+   - Description: Quantifies the "tailedness" and sharpness of the amplitude 
+     distribution. Heavy-tailed distributions (high kurtosis) indicate sparse, 
+     spiky transients (isolated kick drums, rimshots in hip-hop/jazz), whereas 
+     low kurtosis reflects sustained, saturated tones.
+
+9. Peak_to_Peak_Amplitude
+   - Category: Amplitude-Statistic
+   - Computation: np.ptp(y) = np.max(y) - np.min(y).
+   - Description: Full dynamic peak-to-peak range between the highest positive 
+     and lowest negative sample values. Reflects head-room, dynamic range 
+     compression, and mastering limiting.
+
+
+--------------------------------------------------------------------------------
+B. SPECTRAL-DOMAIN FEATURES (Features 10 - 18)
+--------------------------------------------------------------------------------
+Extracted via Short-Time Fourier Transform (STFT) with n_fft=2048, hop_length=512.
+
+10. Spectral_Centroid
+    - Category: Spectral-Domain
+    - Computation: librosa.feature.spectral_centroid(S=S, sr=22050).
+    - Description: Center of mass of the frequency spectrum. Corresponds directly 
+      to the perceived "brightness" or "sharpness" of the sound. Bright genres 
+      with prominent high frequencies (EDM, Pop, Rock) exhibit significantly higher 
+      centroids than mellow genres (Jazz, Lo-Fi, R&B).
+
+11. Spectral_Bandwidth
+    - Category: Spectral-Domain
+    - Computation: librosa.feature.spectral_bandwidth(S=S, sr=22050).
+    - Description: Measures the spectral spread (standard deviation) of frequency 
+      components around the spectral centroid. Broad, multi-layered arrangements 
+      (EDM, Rock) have wide bandwidths, while minimalist acoustic tracks exhibit 
+      narrower bandwidths.
+
+12. Spectral_Contrast
+    - Category: Spectral-Domain
+    - Computation: librosa.feature.spectral_contrast(S=S, sr=22050).
+    - Description: Evaluates the energy difference between spectral peaks (harmonic 
+      components) and valleys (ambient noise/sub-bands). High contrast implies clear, 
+      distinct harmonic notes (classical, clean acoustic guitars in country), whereas 
+      low contrast denotes dense, continuous noise or heavy distortion.
+
+13. Spectral_Rolloff
+    - Category: Spectral-Domain
+    - Computation: librosa.feature.spectral_rolloff(S=S, sr=22050, roll_percent=0.85).
+    - Description: Frequency below which 85% of total spectral energy is contained. 
+      Helps distinguish bass-dominated genres (Hip-Hop, Lo-Fi) from treble-dominated 
+      genres (Country, Rock, Pop).
+
+14. Spectral_Flatness
+    - Category: Spectral-Domain
+    - Computation: librosa.feature.spectral_flatness(S=S).
+    - Description: Quantifies whether the spectrum is tone-like or noise-like. 
+      Computed as the ratio of geometric mean to arithmetic mean of spectral energy. 
+      High flatness indicates noisy, broadband sound (white noise, heavy cymbals); 
+      low flatness indicates isolated harmonic peaks (melodic vocals, flute, brass).
+
+15. Spectral_Flux
+    - Category: Spectral-Domain
+    - Computation: librosa.onset.onset_strength(S=S).
+    - Description: Measure of the local rate of spectral change between successive 
+      frames. Directly reflects rhythmic tempo, beat onsets, and percussive punch. 
+      Very high in EDM and Hip-Hop; lower in smooth ambient or jazz tracks.
+
+16. Spectral_Skewness
+    - Category: Spectral-Domain
+    - Computation: 3rd spectral moment: sum(((freqs - mu) / sigma)^3 * mag_norm).
+    - Description: Measures the asymmetry of the frequency distribution. Positive 
+      skewness indicates energy concentrated in lower frequencies (bass/mid-range) 
+      with a long tail extending into higher frequencies.
+
+17. Spectral_Kurtosis
+    - Category: Spectral-Domain
+    - Computation: 4th spectral moment: sum(((freqs - mu) / sigma)^4 * mag_norm).
+    - Description: Measures the peakedness of the spectral shape. High spectral 
+      kurtosis characterizes spectra dominated by a few narrow harmonic tones; 
+      low kurtosis indicates evenly distributed frequency bands.
+
+18. Spectral_Slope
+    - Category: Spectral-Domain
+    - Computation: Linear regression slope of the decibel magnitude spectrum over 
+      frequency bins.
+    - Description: Rate of spectral roll-off and decay as frequency increases. 
+      Warm, darker genres exhibit steep negative slopes; bright modern mixes show 
+      gentler slopes.
+
+
+--------------------------------------------------------------------------------
+C. MEL-FREQUENCY CEPSTRAL COEFFICIENTS (Features 19 - 31)
+--------------------------------------------------------------------------------
+Extracted via librosa.feature.mfcc(y=y, sr=22050, n_mfcc=13) and averaged over time.
+
+19. MFCC_1:
+    - Overall acoustic energy and average spectral amplitude across mel bands.
+20. MFCC_2:
+    - Balance between low-frequency and high-frequency content (spectral tilt).
+21. MFCC_3:
+    - Curvature of spectral shape; distinguishes nasal/vocal and string resonance.
+22. MFCC_4:
+    - Sub-band balance; sensitive to presence of electric guitar distortion and punch.
+23. MFCC_5:
+    - Formant structure representation; distinguishes male/female vocals and synths.
+24. MFCC_6:
+    - Acoustic warmth and mid-range brass/acoustic guitar presence.
+25. MFCC_7:
+    - High-mid harmonic presence and percussive snare snap.
+26. MFCC_8:
+    - Higher harmonic formant resonance and vocal articulation.
+27. MFCC_9:
+    - Fine timbral texture; distinguishes woodwinds, clean strings, and synth pads.
+28. MFCC_10:
+    - High-frequency air band and harmonic overtones.
+29. MFCC_11:
+    - Cymbal shimmer and sibilance energy distribution.
+30. MFCC_12:
+    - Fine-grained spectral envelope resonance.
+31. MFCC_13:
+    - High-order cepstral envelope coefficient for subtle genre-specific timbre.
+
+
+================================================================================
+4. TARGET LABELS & GENRE DISTRIBUTION
+================================================================================
+Number of Classes: 9
+Class Mapping & Distribution in Train Split (12,208 samples):
+- edm     : ~13.21% (Electronic Dance Music)
+- rock    : ~12.79% (Rock)
+- pop     : ~11.80% (Pop)
+- kpop    : ~11.72% (Korean Pop)
+- country : ~11.59% (Country)
+- r&b     : ~11.55% (Rhythm & Blues)
+- hiphop  : ~10.87% (Hip-Hop / Rap)
+- lofi    : ~10.61% (Lo-Fi Hip-Hop / Chill)
+- jazz    :  ~5.86% (Jazz)
+
+
+================================================================================
+5. MODEL BENCHMARKS (TEST SET ACCURACY COMPARISON)
+================================================================================
+
+A. Tabular Acoustic Feature Models (Trained on 31 extracted features):
+--------------------------------------------------------------------------------
+Model Name          | Preprocessing & Hyperparameters          | Seg Acc | Song Acc
+--------------------+------------------------------------------+---------+---------
+Linear SVM          | StandardScaler + CalibratedClassifierCV  | 51.93%  | 64.97%
+PyTorch MLP         | BatchNorm + Dropout(0.3) + ReduceLROnPlat| 54.22%  | 66.67%
+LightGBM            | Gradient Boosting (Early Stopping)       | 50.99%  | 63.28%
+Random Forest       | Balanced Class Weights + 300 Trees       | 47.45%  | 62.15%
+
+B. 2D Mel Spectrogram CNN Models (Trained on 128x431 Log-Mel Arrays):
+--------------------------------------------------------------------------------
+Model Name          | Backbone Architecture & Enhancements     | Seg Acc | Song Acc
+--------------------+------------------------------------------+---------+---------
+ResNet-18           | Fine-tuned Stage4 + Mixup + SpecAugment  | 89.44%  | 92.09%
+EfficientNet-B0     | Fine-tuned Top Blocks + CosineAnnealing  | 88.32%  | 93.79%
+MobileNetV2         | Depthwise Inverted Residuals + Augment   | 77.64%  | 89.27%
+
+C. Multi-Modal Ensemble System (Fusing All 7 Modalities):
+--------------------------------------------------------------------------------
+Model Architecture                           | Voting Mechanism     | Accuracy
+---------------------------------------------+----------------------+----------
+Multi-Modal Segment-Level Ensemble (7 Models)| Weighted Soft-Voting | 90.81%
+Full Song / Track-Level Ensemble             | Segment Aggregation  | 93.22%
+
+Ensemble Weight Allocation:
+  - ResNet-18       : 35.0%
+  - EfficientNet-B0 : 30.0%
+  - MobileNetV2     : 15.0%
+  - PyTorch MLP     :  8.0%
+  - Linear SVM      :  6.0%
+  - LightGBM        :  4.0%
+  - Random Forest   :  2.0%
+
+Conclusion & Key Insights:
+1. Convolutional architectures trained on 2D Log-Mel Spectrogram representations
+   significantly outperform 1D hand-crafted tabular features (89.4% vs 54.2%).
+2. Full-song aggregation (averaging segment posteriors per track) provides a massive
+   boost across every model, elevating the Multi-Modal Ensemble to 93.22% test accuracy.
+3. Lo-Fi achieves 100% precision and recall in the ensemble, with jazz, k-pop, 
+   country, and r&b all exceeding 90% F1-score.
+
+
+================================================================================
+6. PYTHON USAGE EXAMPLE (HOW TO LOAD & USE IN SCRIPTS)
+================================================================================
+
+import pandas as pd
+
+# 1. Load the features dataset
+df = pd.read_csv("csvs/features.csv")
+
+# 2. Separate metadata and features
+TARGET_COL = "Genre"
+IGNORE_COLS = ["Filename", TARGET_COL]
+FEATURE_COLS = [c for c in df.columns if c not in IGNORE_COLS]
+
+print(f"Total features: {len(FEATURE_COLS)}")  # 31 features
+print(f"Dataset shape: {df.shape}")           # (16261, 33)
+
+X = df[FEATURE_COLS]
+y = df[TARGET_COL]
+
+# 3. Load pre-split datasets (Track-level stratified split)
+train_df = pd.read_csv("csvs/train.csv")
+valid_df = pd.read_csv("csvs/valid.csv")
+test_df  = pd.read_csv("csvs/test.csv")
+
+# 4. Run the Ensemble System
+# python models/ensemble.py
+================================================================================

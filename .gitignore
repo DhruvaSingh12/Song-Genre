@@ -1,8 +1,47 @@
+# Audio data and preprocessed arrays
 /mel_arrays/
 /trimmed_wavs/
 /songs/
 /mel_spectrograms/
 /upload/
+
+# Model weights and serialized pipelines
 *.joblib
 *.pt
 *.pth
+*.onnx
+
+# Cached prediction probabilities & numpy outputs
+*.npy
+checkpoints_backup/
+*/checkpoints_backup/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & Editor configurations
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Operating System artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temporary files
+*.log
