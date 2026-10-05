@@ -73,9 +73,7 @@ def main():
     results = {}
     probs = {}
 
-    # -------------------------------------------------------------
     # MODEL 1: RBF KERNEL SUPPORT VECTOR MACHINE
-    # -------------------------------------------------------------
     print("\n" + "-" * 60)
     print("1/4. Retraining RBF Kernel Support Vector Machine (C=3.0, balanced)...")
     print("-" * 60)
@@ -112,9 +110,7 @@ def main():
     results["SVM (RBF Kernel)"] = (val_acc_svm, test_acc_svm)
     probs["svm"] = test_probs_svm
 
-    # -------------------------------------------------------------
     # MODEL 2: REGULARIZED RANDOM FOREST
-    # -------------------------------------------------------------
     print("\n" + "-" * 60)
     print("2/4. Retraining Regularized Random Forest (max_depth=16, min_samples_leaf=3)...")
     print("-" * 60)
@@ -152,9 +148,7 @@ def main():
     results["Random Forest (Regularized)"] = (val_acc_rf, test_acc_rf)
     probs["rf"] = test_probs_rf
 
-    # -------------------------------------------------------------
     # MODEL 3: LIGHTGBM GRADIENT BOOSTING
-    # -------------------------------------------------------------
     print("\n" + "-" * 60)
     print("3/4. Training LightGBM Gradient Boosted Trees...")
     print("-" * 60)
@@ -192,9 +186,7 @@ def main():
     results["LightGBM"] = (val_acc_lgb, test_acc_lgb)
     probs["lgb"] = test_probs_lgb
 
-    # -------------------------------------------------------------
     # MODEL 4: PYTORCH MLP (BATCHNORM, MISH, ADAMW, COSINE SCHEDULER)
-    # -------------------------------------------------------------
     print("\n" + "-" * 60)
     print("4/4. Retraining PyTorch MLP (BatchNorm, Mish, AdamW, CosineLR on GPU)...")
     print("-" * 60)
@@ -315,9 +307,7 @@ def main():
     # Save classes
     np.save(features_dir / "classes.npy", np.array(classes))
 
-    # -------------------------------------------------------------
     # 5. TABULAR MULTI-MODEL ENSEMBLE
-    # -------------------------------------------------------------
     print("\n" + "=" * 70)
     print("5. COMPUTING TABULAR MULTI-MODEL ENSEMBLE")
     print("=" * 70)
